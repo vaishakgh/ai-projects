@@ -126,10 +126,14 @@ if __name__ == "__main__":
     client = anthropic.Anthropic()
 
     prompts = [
+        # One tool call:get_weather
         "What's the weather like in Tokyo right now?",
+        # One tool call:calculator
         "What is 347 * 19?",
-    #    "What is the weather now in China?",
-    #    "What is the weather now in New York? Add 345 and 567 together for me as well, please.",
+        # No tool calls, should get a direct text response asking for a city name.
+        "What is the weather now in China?",
+        # Multiple tool calls in one turn: get_weather and calculator.
+        "What is the weather now in New York? Add 345 and 567 together for me as well, please.",
     ]
 
     for prompt in prompts:
@@ -137,67 +141,3 @@ if __name__ == "__main__":
         reply = ask_with_tools(client, prompt)
         print(f"Claude: {reply}\n")
 
-
-
-
-
-"""
-Log output from running the above code:
-
-User  : What's the weather like in Tokyo right now?
-Claude Initial response: Message(id='msg_01AvGcMaPyEdLKhsobTwZgks', container=None, 
-content=[ToolUseBlock(id='toolu_01NpShALcjYz4wms3xrUYRc5', caller=DirectCaller(type='direct'), input={'city': 'Tokyo'}, name='get_weather', type='tool_use')], 
-model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason='tool_use', stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=669, output_tokens=54, server_tool_use=None, service_tier='standard'))
-  [tool call] get_weather({'city': 'Tokyo'})
-  [tool result] {"city": "Tokyo", "temperature": "22\u00b0C", "condition": "Partly cloudy"}
-Claude Final response: Message(id='msg_018Q76hnK4KWCTXrrNZ2D9Ha', container=None, 
-content=[TextBlock(citations=None, text='The current weather in **Tokyo** is **22°C** and **partly cloudy**. It sounds like a mild and pleasant day! 🌤️ Let me know if you need any other information.', type='text')], 
-model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason='end_turn', stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=762, output_tokens=48, server_tool_use=None, service_tier='standard'))
-Claude: The current weather in **Tokyo** is **22°C** and **partly cloudy**. It sounds like a mild and pleasant day! 🌤️ Let me know if you need any other information.
-
-User  : What is 347 * 19?
-Claude Initial response: Message(id='msg_01EhmRz4QsFc52eJbsvJmZKz', container=None, 
-content=[ToolUseBlock(id='toolu_01HFHUJGm7PAmtoh7imhiAg1', caller=DirectCaller(type='direct'), input={'expression': '347 * 19'}, name='calculator', type='tool_use')], 
-model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason='tool_use', stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=668, output_tokens=56, server_tool_use=None, service_tier='standard'))
-  [tool call] calculator({'expression': '347 * 19'})
-  [tool result] {"result": 6593}
-Claude Final response: Message(id='msg_01Egu1kBRM1MiDsPBz1QQN2W', container=None, 
-content=[TextBlock(citations=None, text='The result of **347 × 19 = 6,593**.', type='text')], 
-model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason='end_turn', stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=742, output_tokens=19, server_tool_use=None, service_tier='standard'))
-Claude: The result of **347 × 19 = 6,593**.
-
-
-
-User  : What is the weather now in China?
-Claude Initial response: Message(id='msg_01VpPXKhs9Ak9B4i32gpmH9X', container=None, content=[TextBlock(citations=None, text="China is a vast country with many cities, each potentially having different weather conditions. Could you please specify which **city in China** you'd like to know the weather for? For example:\n\n- **Beijing**\n- **Shanghai**\n- **Guangzhou**\n- **Shenzhen**\n- **Chengdu**", type='text')], model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason='end_turn', stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=667, output_tokens=74, server_tool_use=None, service_tier='standard'))
-Claude: China is a vast country with many cities, each potentially having different weather conditions. Could you please specify which **city in China** you'd like to know the weather for? For example:
-
-- **Beijing**
-- **Shanghai**
-- **Guangzhou**
-- **Shenzhen**
-- **Chengdu**
-
-User  : What is the weather now in New York? Add 345 and 567 together for me as well, please.
-Claude Initial response: Message(id='msg_015tXEA9X3Vmyb5dHL4i6vz9', container=None, 
-content=[TextBlock(citations=None, text='Sure! Let me fetch the weather in New York and calculate that sum at the same time!', type='text'), ToolUseBlock(id='toolu_015AH28MNHsbyNAE2tv5Cawv', caller=DirectCaller(type='direct'), input={'city': 'New York'}, name='get_weather', type='tool_use'), 
-ToolUseBlock(id='toolu_01Eooje6ppAQGvWvCTY9ED6j', caller=DirectCaller(type='direct'), input={'expression': '345 + 567'}, name='calculator', type='tool_use')], 
-model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason='tool_use', stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=684, output_tokens=112, server_tool_use=None, service_tier='standard'))
-  [tool call] get_weather({'city': 'New York'})
-  [tool result] {"city": "New York", "temperature": "22\u00b0C", "condition": "Partly cloudy"}
-  [tool call] calculator({'expression': '345 + 567'})
-  [tool result] {"result": 912}
-Claude Final response: Message(id='msg_01PeeeWrBNVYT2wKbBfccLPD', container=None, 
-content=[TextBlock(citations=None, text="Here are the results!\n\n🌤️ **Weather in New York:**\n- **Temperature:** 22°C\n- **Condition:** Partly Cloudy\n\n🧮 **345 + 567 = 912**\n\nLet me know if there's anything else you'd like to know!", type='text')], 
-model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason='end_turn', stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=890, output_tokens=71, server_tool_use=None, service_tier='standard'))
-Claude: Here are the results!
-
-🌤️ **Weather in New York:**
-- **Temperature:** 22°C
-- **Condition:** Partly Cloudy
-
-🧮 **345 + 567 = 912**
-
-Let me know if there's anything else you'd like to know!
-
-"""
