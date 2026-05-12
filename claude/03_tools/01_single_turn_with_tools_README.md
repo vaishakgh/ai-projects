@@ -15,9 +15,8 @@ Demonstrates how to use Claude's tool-calling feature (function calling) with th
 
 ### Prompt: "What's the weather like in Tokyo right now?"
 
-### Simplified
+#### Simplified Log
 ```
-### Simplified
 Claude Initial response: Message(
   content=[ToolUseBlock(input={'city': 'Tokyo'}, name='get_weather', type='tool_use')],
   stop_reason='tool_use')
@@ -37,7 +36,7 @@ Claude: The current weather in **Tokyo** is **22°C** and **partly cloudy**. It 
 
 ### Prompt: "What is 347 * 19?"
 
-### Simplified Logs
+#### Simplified Log
 ```
 Claude Initial response: Message(
   content=[ToolUseBlock(input={'expression': '347 * 19'}, name='calculator', type='tool_use')],
@@ -59,7 +58,7 @@ Claude: The result of **347 × 19 = 6,593**.
 
 Claude asks for clarification (no tool call made — city not specific enough):
 
-### Simplified Logs
+#### Simplified Log
 ```
 Claude: China is a vast country with many cities, each potentially having different weather
 conditions. Could you please specify which city in China you'd like to know the weather for?
@@ -71,7 +70,7 @@ conditions. Could you please specify which city in China you'd like to know the 
 
 Claude calls **both tools in parallel** in a single response:
 
-### Simplified Logs
+#### Simplified Log
 ```
 Claude Initial response: Message(
   content=[
@@ -102,9 +101,11 @@ Claude: 🌤️ Weather in New York: 22°C, Partly Cloudy
 
 > See the [Anthropic tool use flow diagram](https://anthropic.skilljar.com/claude-with-the-anthropic-api/287752) to understand the message structure across lines 94 and 109.
 
+---
 
-### Full logs
-'''
+## Full Log Output
+
+```
 
 
 User  : What's the weather like in Tokyo right now?
@@ -155,4 +156,4 @@ Claude: Here are your results:
 2. ➕ **345 + 567 = 912**
 
 Let me know if there's anything else I can help you with!
-'''
+```

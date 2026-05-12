@@ -131,142 +131,173 @@ Chunk 3: 'kyo"}'
 
 This is why `current_tool_input_chunks` accumulates the fragments and `json.loads` only runs at `content_block_stop`.
 
+---
 
-============================================================
-APPROACH 1 — COARSE (text_stream only)
-============================================================
+## Full Log Output — Prompt: `"What's the weather in Tokyo and what is 128 * 4?"`
+
+### Approach 1 — COARSE (`text_stream` only)
+
+`text_stream` printed the initial text but silently dropped both tool calls — the tools never ran.
+
+```
 [COARSE] User: What's the weather in Tokyo and what is 128 * 4?
-
-[COARSE] Claude: [COARSE] Received token: 'I'll look'
-I'll look[COARSE] Received token: ' up both at the same time!'
+[COARSE] Claude: [COARSE] Received token: 'I\'ll look'
+I\'ll look[COARSE] Received token: ' up both at the same time!'
  up both at the same time!
 
-[COARSE] Final response content: ParsedMessage(id='msg_01MopHbfqU74n87dkgpPywYa', container=None, 
-content=[ParsedTextBlock(citations=None, text="I'll look up both at the same time!", type='text', parsed_output=None), 
-ToolUseBlock(id='toolu_01UAixH1wMQuCGineiqRiZda', caller=DirectCaller(type='direct'), input={'city': 'Tokyo'}, name='get_weather', type='tool_use'), 
-ToolUseBlock(id='toolu_01C62yYq9D2LjCw5tn24vNKK', caller=DirectCaller(type='direct'), input={'expression': '128 * 4'}, name='calculator', type='tool_use')], model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason='tool_use', stop_sequence=None, 
-type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=668, output_tokens=102, server_tool_use=None, service_tier='standard'))
+[COARSE] Final response content: ParsedMessage(
+  content=[
+    ParsedTextBlock(text="I\'ll look up both at the same time!"),
+    ToolUseBlock(id='toolu_01UAi...', input={'city': 'Tokyo'}, name='get_weather'),
+    ToolUseBlock(id='toolu_01C62...', input={'expression': '128 * 4'}, name='calculator')
+  ],
+  stop_reason='tool_use')
 
 [COARSE] stop_reason='tool_use' — tool call was silently dropped!
+```
 
-========================================================================================================================
+---
 
+### Approach 2 — FINE-GRAINED (with debug output)
 
-#Log with additional log output
-============================================================
-APPROACH 2 — FINE-GRAINED (raw SSE events)
-============================================================
-[FINE-GRAINED] User: What's the weather in Tokyo and what is 128 * 4?
+> **Note on `text` / `input_json` events:** The SDK emits two parallel event streams when iterating `stream`. Alongside the raw `content_block_delta` events, the SDK also fires higher-level `TextEvent` (`event.type='text'`) and `InputJsonEvent` (`event.type='input_json'`) events. These carry the same data as `text_delta` / `input_json_delta` respectively. The code only handles the raw `content_block_*` events; the higher-level ones fall through unhandled.
 
-# eventType MessageStart : Claude Assistant Message
-*** [FINE-GRAINED] ReceivedEventType='message_start'  ReceivedEvent=RawMessageStartEvent(message=Message(id='msg_01RiphQW8wEoYKuRdaNnRFbr', container=None, content=[], model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason=None, stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=668, output_tokens=3, server_tool_use=None, service_tier='standard')), type='message_start')
+#### Turn 1 — `message_start`
 
-# eventType ContentBlockStart - eventType ContentBlockStop : Text
-*** [FINE-GRAINED] ReceivedEventType='content_block_start'  ReceivedEvent=RawContentBlockStartEvent(content_block=TextBlock(citations=None, text='', type='text'), index=0, type='content_block_start')
-[FINE-GRAINED] Claude (streaming text): 
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=TextDelta(text="I'll look", type='text_delta'), index=0, type='content_block_delta') I'll look
-*** [FINE-GRAINED] ReceivedEventType='text'  ReceivedEvent=TextEvent(type='text', text="I'll look", snapshot="I'll look")
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=TextDelta(text=' up the weather in Tokyo and calculate 128 * 4 at the same time!', type='text_delta'), index=0, type='content_block_delta') up the weather in Tokyo and calculate 128 * 4 at the same time!
- *** [FINE-GRAINED] ReceivedEventType='text'  ReceivedEvent=TextEvent(type='text', text=' up the weather in Tokyo and calculate 128 * 4 at the same time!', snapshot="I'll look up the weather in Tokyo and calculate 128 * 4 at the same time!")
-*** [FINE-GRAINED] ReceivedEventType='content_block_stop'  ReceivedEvent=ParsedContentBlockStopEvent(index=0, type='content_block_stop', content_block=ParsedTextBlock(citations=None, text="I'll look up the weather in Tokyo and calculate 128 * 4 at the same time!", type='text', parsed_output=None))
+```
+*** [FINE-GRAINED] ReceivedEventType='message_start'
+    RawMessageStartEvent(message=Message(id='msg_01Riph...', content=[], stop_reason=None,
+      usage=Usage(input_tokens=668, output_tokens=3)), type='message_start')
+```
 
+#### Turn 1 — `content_block_start` → `content_block_stop` : Text block (index=0)
 
-# eventType ContentBlockStart - eventType ContentBlockStop : Tool get_weather
-*** [FINE-GRAINED] ReceivedEventType='content_block_start'  ReceivedEvent=RawContentBlockStartEvent(content_block=ToolUseBlock(id='toolu_01YaB3zUGJEXfKR4b58LzLSq', caller=DirectCaller(type='direct'), input={}, name='get_weather', type='tool_use'), index=1, type='content_block_start')
+```
+*** [FINE-GRAINED] ReceivedEventType='content_block_start'
+    RawContentBlockStartEvent(content_block=TextBlock(text='', type='text'), index=0)
+[FINE-GRAINED] Claude (streaming text):
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    delta=TextDelta(text="I\'ll look", type='text_delta')  →  I\'ll look
+*** [FINE-GRAINED] ReceivedEventType='text'   # SDK high-level TextEvent (not handled by our code)
+    TextEvent(text="I\'ll look", snapshot="I\'ll look")
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    delta=TextDelta(text=' up the weather in Tokyo and calculate 128 * 4 at the same time!')
+*** [FINE-GRAINED] ReceivedEventType='text'   # SDK high-level TextEvent (not handled by our code)
+*** [FINE-GRAINED] ReceivedEventType='content_block_stop'
+    ParsedContentBlockStopEvent(content_block=ParsedTextBlock(
+      text="I\'ll look up the weather in Tokyo and calculate 128 * 4 at the same time!"))
+```
+
+#### Turn 1 — `content_block_start` → `content_block_stop` : Tool `get_weather` (index=1)
+
+```
+*** [FINE-GRAINED] ReceivedEventType='content_block_start'
+    content_block=ToolUseBlock(id='toolu_01YaB3...', input={}, name='get_weather'), index=1
 [FINE-GRAINED] Tool call starting: get_weather (id=toolu_01YaB3zUGJEXfKR4b58LzLSq)
-[FINE-GRAINED] Streaming tool input JSON: 
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json='', type='input_json_delta'), index=1, type='content_block_delta')
-*** [FINE-GRAINED] ReceivedEventType='input_json'  ReceivedEvent=InputJsonEvent(type='input_json', partial_json='', snapshot={})
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json='{"c', type='input_json_delta'), index=1, type='content_block_delta') {"c
-*** [FINE-GRAINED] ReceivedEventType='input_json'  ReceivedEvent=InputJsonEvent(type='input_json', partial_json='{"c', snapshot={})
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json='ity": "T', type='input_json_delta'), index=1, type='content_block_delta') ity": "T
-*** [FINE-GRAINED] ReceivedEventType='input_json'  ReceivedEvent=InputJsonEvent(type='input_json', partial_json='ity": "T', snapshot={})
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json='okyo"}', type='input_json_delta'), index=1, type='content_block_delta') okyo"}
-*** [FINE-GRAINED] ReceivedEventType='input_json'  ReceivedEvent=InputJsonEvent(type='input_json', partial_json='okyo"}', snapshot={'city': 'Tokyo'})
-*** [FINE-GRAINED] ReceivedEventType='content_block_stop'  ReceivedEvent=ParsedContentBlockStopEvent(index=1, type='content_block_stop', content_block=ToolUseBlock(id='toolu_01YaB3zUGJEXfKR4b58LzLSq', caller=DirectCaller(type='direct'), input={'city': 'Tokyo'}, name='get_weather', type='tool_use'))
+[FINE-GRAINED] Streaming tool input JSON:
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    delta=InputJSONDelta(partial_json='')          # empty first fragment
+*** [FINE-GRAINED] ReceivedEventType='input_json'  # SDK high-level InputJsonEvent (not handled)
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    delta=InputJSONDelta(partial_json='{"c')  →  {"c
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    delta=InputJSONDelta(partial_json='ity": "T')  →  ity": "T
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    delta=InputJSONDelta(partial_json='okyo"}')  →  okyo"}
+*** [FINE-GRAINED] ReceivedEventType='content_block_stop'
+    content_block=ToolUseBlock(input={'city': 'Tokyo'}, name='get_weather')
+```
 
+#### Turn 1 — `content_block_start` → `content_block_stop` : Tool `calculator` (index=2)
 
-# eventType ContentBlockStart - eventType ContentBlockStop : Tool calculator
-*** [FINE-GRAINED] ReceivedEventType='content_block_start'  ReceivedEvent=RawContentBlockStartEvent(content_block=ToolUseBlock(id='toolu_01UvBkVXstqNF7G1diw16Umw', caller=DirectCaller(type='direct'), input={}, name='calculator', type='tool_use'), index=2, type='content_block_start')
+```
+*** [FINE-GRAINED] ReceivedEventType='content_block_start'
+    content_block=ToolUseBlock(id='toolu_01UvBk...', input={}, name='calculator'), index=2
 [FINE-GRAINED] Tool call starting: calculator (id=toolu_01UvBkVXstqNF7G1diw16Umw)
-[FINE-GRAINED] Streaming tool input JSON: 
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json='', type='input_json_delta'), index=2, type='content_block_delta')
-*** [FINE-GRAINED] ReceivedEventType='input_json'  ReceivedEvent=InputJsonEvent(type='input_json', partial_json='', snapshot={})
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json='{"expres', type='input_json_delta'), index=2, type='content_block_delta') {"expres
-*** [FINE-GRAINED] ReceivedEventType='input_json'  ReceivedEvent=InputJsonEvent(type='input_json', partial_json='{"expres', snapshot={})
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json='sion": "12', type='input_json_delta'), index=2, type='content_block_delta') sion": "12
-*** [FINE-GRAINED] ReceivedEventType='input_json'  ReceivedEvent=InputJsonEvent(type='input_json', partial_json='sion": "12', snapshot={})
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json='8 ', type='input_json_delta'), index=2, type='content_block_delta') 8 
-*** [FINE-GRAINED] ReceivedEventType='input_json'  ReceivedEvent=InputJsonEvent(type='input_json', partial_json='8 ', snapshot={})
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=InputJSONDelta(partial_json='* 4"}', type='input_json_delta'), index=2, type='content_block_delta') * 4"}
-*** [FINE-GRAINED] ReceivedEventType='input_json'  ReceivedEvent=InputJsonEvent(type='input_json', partial_json='* 4"}', snapshot={'expression': '128 * 4'})
-*** [FINE-GRAINED] ReceivedEventType='content_block_stop'  ReceivedEvent=ParsedContentBlockStopEvent(index=2, type='content_block_stop', content_block=ToolUseBlock(id='toolu_01UvBkVXstqNF7G1diw16Umw', caller=DirectCaller(type='direct'), input={'expression': '128 * 4'}, name='calculator', type='tool_use'))
+[FINE-GRAINED] Streaming tool input JSON:
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    delta=InputJSONDelta(partial_json='{"expres')  →  {"expres
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    delta=InputJSONDelta(partial_json='sion": "12')  →  sion": "12
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    delta=InputJSONDelta(partial_json='8 ')  →  8
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    delta=InputJSONDelta(partial_json='* 4"}')  →  * 4"}
+*** [FINE-GRAINED] ReceivedEventType='content_block_stop'
+    content_block=ToolUseBlock(input={'expression': '128 * 4'}, name='calculator')
+```
 
+#### Turn 1 — `message_delta` and `message_stop`
 
-# eventType MessageDelta
-*** [FINE-GRAINED] ReceivedEventType='message_delta'  ReceivedEvent=RawMessageDeltaEvent(delta=Delta(container=None, stop_details=None, stop_reason='tool_use', stop_sequence=None), type='message_delta', usage=MessageDeltaUsage(cache_creation_input_tokens=0, cache_read_input_tokens=0, input_tokens=668, output_tokens=114, server_tool_use=None))
+```
+*** [FINE-GRAINED] ReceivedEventType='message_delta'
+    delta=Delta(stop_reason='tool_use')  usage=MessageDeltaUsage(input_tokens=668, output_tokens=114)
 [FINE-GRAINED] stop_reason='tool_use'
 
-# eventType MessageStop
-*** [FINE-GRAINED] ReceivedEventType='message_stop'  ReceivedEvent=ParsedMessageStopEvent(type='message_stop', message=ParsedMessage(id='msg_01RiphQW8wEoYKuRdaNnRFbr', container=None, content=[ParsedTextBlock(citations=None, text="I'll look up the weather in Tokyo and calculate 128 * 4 at the same time!", type='text', parsed_output=None), ToolUseBlock(id='toolu_01YaB3zUGJEXfKR4b58LzLSq', caller=DirectCaller(type='direct'), input={'city': 'Tokyo'}, name='get_weather', type='tool_use'), 
-ToolUseBlock(id='toolu_01UvBkVXstqNF7G1diw16Umw', caller=DirectCaller(type='direct'), input={'expression': '128 * 4'}, name='calculator', type='tool_use')], model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason='tool_use', stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=668, output_tokens=114, server_tool_use=None, service_tier='standard')))
-[FINE-GRAINED] Executed get_weather({'city': 'Tokyo'}) → {"city": "Tokyo", "temperature": "22\u00b0C", "condition": "Partly cloudy"}
+*** [FINE-GRAINED] ReceivedEventType='message_stop'
+    ParsedMessageStopEvent(message=ParsedMessage(
+      content=[TextBlock(...), ToolUseBlock(name='get_weather'), ToolUseBlock(name='calculator')],
+      stop_reason='tool_use'))
+```
+
+#### Tool execution (between Turn 1 and Turn 2)
+
+```
+[FINE-GRAINED] Executed get_weather({'city': 'Tokyo'}) → {"city": "Tokyo", "temperature": "22°C", "condition": "Partly cloudy"}
 [FINE-GRAINED] Executed calculator({'expression': '128 * 4'}) → {"result": 512}
 [FINE-GRAINED] Sending tool results back, continuing stream...
+```
 
+#### Turn 2 — `message_start` → text → `message_stop`
 
+```
+*** [FINE-GRAINED] ReceivedEventType='message_start'
+    Message(id='msg_011kUf...', stop_reason=None, usage=Usage(input_tokens=875, output_tokens=1))
 
+*** [FINE-GRAINED] ReceivedEventType='content_block_start'
+    content_block=TextBlock(text='', type='text'), index=0
+[FINE-GRAINED] Claude (streaming text):
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  TextDelta(text='Here')  →  Here
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    TextDelta(text=' are your answers:\n\n- 🌤️ **Weather in Tokyo:** It')
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    TextDelta(text="\'s currently **22°C** and **partly cloudy**.\n- 🧮 **128 × 4 = 512**")
+*** [FINE-GRAINED] ReceivedEventType='content_block_delta'
+    TextDelta(text='\n\nLet me know if you need anything else!')
+*** [FINE-GRAINED] ReceivedEventType='content_block_stop'
+    ParsedTextBlock(text="Here are your answers:\n\n- 🌤️ **Weather in Tokyo:** It\'s currently **22°C** ...")
 
-# eventType MessageStart
-*** [FINE-GRAINED] ReceivedEventType='message_start'  ReceivedEvent=RawMessageStartEvent(message=Message(id='msg_011kUf9zcJSWfN3brsvN8h9i', container=None, content=[], model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason=None, stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=875, output_tokens=1, server_tool_use=None, service_tier='standard')), type='message_start')
-
-
-# eventType ContentBlockStart - eventType ContentBlockStop : Text
-*** [FINE-GRAINED] ReceivedEventType='content_block_start'  ReceivedEvent=RawContentBlockStartEvent(content_block=TextBlock(citations=None, text='', type='text'), index=0, type='content_block_start')
-[FINE-GRAINED] Claude (streaming text): 
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=TextDelta(text='Here', type='text_delta'), index=0, type='content_block_delta') Here
-*** [FINE-GRAINED] ReceivedEventType='text'  ReceivedEvent=TextEvent(type='text', text='Here', snapshot='Here')
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=TextDelta(text=' are your answers:\n\n- 🌤️ **Weather in Tokyo:** It', type='text_delta'), index=0, type='content_block_delta') are your answers:
-- 🌤️ **Weather in Tokyo:** It
-*** [FINE-GRAINED] ReceivedEventType='text'  ReceivedEvent=TextEvent(type='text', text=' are your answers:\n\n- 🌤️ **Weather in Tokyo:** It', snapshot='Here are your answers:\n\n- 🌤️ **Weather in Tokyo:** It')
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=TextDelta(text="'s currently **22°C** and **partly cloudy**.\n- 🧮 **128 × 4 = 512**", type='text_delta'), index=0, type='content_block_delta') 's currently **22°C** and **partly cloudy**.
-- 🧮 **128 × 4 = 512**
-*** [FINE-GRAINED] ReceivedEventType='text'  ReceivedEvent=TextEvent(type='text', text="'s currently **22°C** and **partly cloudy**.\n- 🧮 **128 × 4 = 512**", snapshot="Here are your answers:\n\n- 🌤️ **Weather in Tokyo:** It's currently **22°C** and **partly cloudy**.\n- 🧮 **128 × 4 = 512**")
-*** [FINE-GRAINED] ReceivedEventType='content_block_delta'  ReceivedEvent=RawContentBlockDeltaEvent(delta=TextDelta(text='\n\nLet me know if you need anything else!', type='text_delta'), index=0, type='content_block_delta') Let me know if you need anything else!
-*** [FINE-GRAINED] ReceivedEventType='text'  ReceivedEvent=TextEvent(type='text', text='\n\nLet me know if you need anything else!', snapshot="Here are your answers:\n\n- 🌤️ **Weather in Tokyo:** It's currently **22°C** and **partly cloudy**.\n- 🧮 **128 × 4 = 512**\n\nLet me know if you need anything else!")
-*** [FINE-GRAINED] ReceivedEventType='content_block_stop'  ReceivedEvent=ParsedContentBlockStopEvent(index=0, type='content_block_stop', content_block=ParsedTextBlock(citations=None, text="Here are your answers:\n\n- 🌤️ **Weather in Tokyo:** It's currently **22°C** and **partly cloudy**.\n- 🧮 **128 × 4 = 512**\n\nLet me know if you need anything else!", type='text', parsed_output=None))
-
-
-# eventType MessageDelta
-*** [FINE-GRAINED] ReceivedEventType='message_delta'  ReceivedEvent=RawMessageDeltaEvent(delta=Delta(container=None, stop_details=None, stop_reason='end_turn', stop_sequence=None), type='message_delta', usage=MessageDeltaUsage(cache_creation_input_tokens=0, cache_read_input_tokens=0, input_tokens=875, output_tokens=63, server_tool_use=None))
+*** [FINE-GRAINED] ReceivedEventType='message_delta'
+    delta=Delta(stop_reason='end_turn')  usage=MessageDeltaUsage(input_tokens=875, output_tokens=63)
 [FINE-GRAINED] stop_reason='end_turn'
 
+*** [FINE-GRAINED] ReceivedEventType='message_stop'
+    ParsedMessageStopEvent(message=ParsedMessage(stop_reason='end_turn', ...))
+```
 
-# eventType MessageStop
-*** [FINE-GRAINED] ReceivedEventType='message_stop'  ReceivedEvent=ParsedMessageStopEvent(type='message_stop', message=ParsedMessage(id='msg_011kUf9zcJSWfN3brsvN8h9i', container=None, content=[ParsedTextBlock(citations=None, text="Here are your answers:\n\n- 🌤️ **Weather in Tokyo:** It's currently **22°C** and **partly cloudy**.\n- 🧮 **128 × 4 = 512**\n\nLet me know if you need anything else!", type='text', parsed_output=None)], model='claude-sonnet-4-6', role='assistant', stop_details=None, stop_reason='end_turn', stop_sequence=None, type='message', usage=Usage(cache_creation=CacheCreation(ephemeral_1h_input_tokens=0, ephemeral_5m_input_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0, inference_geo='global', input_tokens=875, output_tokens=63, server_tool_use=None, service_tier='standard')))
+---
 
+### Approach 2 — FINE-GRAINED (clean output, no debug lines)
 
-#Log without additional log output
-============================================================
-APPROACH 2 — FINE-GRAINED (raw SSE events)
-============================================================
-[FINE-GRAINED] User: What's the weather in Tokyo and what is 128 * 4?
-[FINE-GRAINED] Claude (streaming text): I'll look up both at the same time!
+```
+[FINE-GRAINED] User: What\'s the weather in Tokyo and what is 128 * 4?
+[FINE-GRAINED] Claude (streaming text): I\'ll look up both at the same time!
 
-[FINE-GRAINED] Tool call starting: get_weather (id=toolu_013LEQgTph3tegRoWPh2z2H4)
+[FINE-GRAINED] Tool call starting: get_weather (id=toolu_013LEQ...)
 [FINE-GRAINED] Streaming tool input JSON: {"city": "Tokyo"}
 
-[FINE-GRAINED] Tool call starting: calculator (id=toolu_013SMDVm4gspc7jBdqcTGx2E)
+[FINE-GRAINED] Tool call starting: calculator (id=toolu_013SMD...)
 [FINE-GRAINED] Streaming tool input JSON: {"expression": "128 * 4"}
-[FINE-GRAINED] stop_reason='tool_use'
-[FINE-GRAINED] Executed get_weather({'city': 'Tokyo'}) → {"city": "Tokyo", "temperature": "22\u00b0C", "condition": "Partly cloudy"}
-[FINE-GRAINED] Executed calculator({'expression': '128 * 4'}) → {"result": 512}
+[FINE-GRAINED] stop_reason=\'tool_use\'
+[FINE-GRAINED] Executed get_weather({\'city\': \'Tokyo\'}) → {"city": "Tokyo", "temperature": "22°C", "condition": "Partly cloudy"}
+[FINE-GRAINED] Executed calculator({\'expression\': \'128 * 4\'}) → {"result": 512}
 [FINE-GRAINED] Sending tool results back, continuing stream...
 
 [FINE-GRAINED] Claude (streaming text): Here are your answers:
 
-- 🌤️ **Weather in Tokyo:** It's currently **22°C** and **partly cloudy**.
+- 🌤️ **Weather in Tokyo:** It\'s currently **22°C** and **partly cloudy**.
 - 🔢 **128 × 4 = 512**
 
 Let me know if you need anything else!
-[FINE-GRAINED] stop_reason='end_turn'
+[FINE-GRAINED] stop_reason=\'end_turn\'
+```
